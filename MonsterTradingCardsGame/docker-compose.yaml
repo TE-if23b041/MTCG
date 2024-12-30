@@ -1,0 +1,24 @@
+﻿services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "10001:10001"
+    depends_on:
+      - db
+    environment:
+      - DB_HOST=mtcg-db
+      - DB_PORT=5432
+      - DB_NAME=mtcg_db
+      - DB_USER=mtcg_user
+      - DB_PASSWORD=mtcg_password
+
+  db:
+    image: postgres:latest
+    environment:
+      POSTGRES_USER: mtcg_user
+      POSTGRES_PASSWORD: mtcg_password
+      POSTGRES_DB: mtcg_db
+    ports:
+      - "5432:5432"

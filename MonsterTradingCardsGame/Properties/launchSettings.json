@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "MonsterTradingCardsGame": {
+      "commandName": "Project"
+    },
+    "Container (Dockerfile)": {
+      "commandName": "Docker"
+    }
+  }
+}
