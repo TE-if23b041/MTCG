@@ -2,10 +2,13 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Net.Sockets;
 using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
 using System.Text;
 using System.Threading.Tasks;
+using MonsterTradingCardsGame.Enums;
+using Npgsql.Internal;
 
 namespace MonsterTradingCardsGame.Server
 {
@@ -13,85 +16,68 @@ namespace MonsterTradingCardsGame.Server
     {
         public async Task HandleRequestAsync(Stream networkStream)
         {
+            // curl -i -X POST http://localhost:10001/users --header "Content-Type: application/json" -d "{"Username":"kienboec", "Password":"daniel"}"
+
+            // POST /user/ HTTP/1.1
+            // Content-Type: application/json
+            // Content-Length: 123
+            //
+            // { "Username": "kienboec", "Password": daniel }
+
+
 
             using var reader = new StreamReader(networkStream, Encoding.UTF8, leaveOpen: true);
-
-            // 1.1 first line in HTTP contains the method, path and HTTP version
-            string? line = reader.ReadLine();
-
-            Console.WriteLine(line);
-
-            string[]? firstLineParts = line?.Split(' ');
-            Method = (HTTPMethod)Enum.Parse(typeof(HTTPMethod), firstLineParts?[0] ?? "GET");
-            string[] pathAndQuery = firstLineParts?[1].Split('?') ?? Array.Empty<string>();
-            Path = pathAndQuery[0].Split('/', StringSplitOptions.RemoveEmptyEntries);
+            var httpRequest = await ParseRequestAsync(reader);
 
 
-            if (Path.Length == 2 && Path[1] == "tradings")
-            {
-                Console.WriteLine();
-            }
 
-            if (pathAndQuery.Length > 1)
-            {
-                string[] queryParams = pathAndQuery[1].Split('&');
-                foreach (var queryParam in queryParams)
-                {
-                    string[] queryParamParts = queryParam.Split('=');
 
-                    if (queryParamParts.Length >= 1)
-                        QueryParameters[queryParamParts[0]] = (queryParamParts.Length == 2) ? queryParamParts[1] : "";
-                }
-            }
-            HttpVersion = firstLineParts?[2] ?? "";
-
-            // 1.2 read the HTTP-headers (in HTTP after the first line, until the empy line)
-            int contentLength = 0; // we need the content_length later, to be able to read the HTTP-content
-            while ((line = reader.ReadLine()) != null)
-            {
-                Console.WriteLine(line);
-                if (line == "")
-                    break;  // empty line indicates the end of the HTTP-headers
-
-                // Parse the header
-                string[] parts = line.Split(':');
-                if (parts.Length == 2)
-                {
-                    Headers[parts[0]] = parts[1].Trim();
-                    if (parts[0] == "Content-Length")
-                    {
-                        contentLength = int.Parse(parts[1].Trim());
-                    }
-                }
-            }
-
-            // 1.3 read the body if existing
-            if (contentLength > 0 && Headers.ContainsKey("Content-Type"))
-            {
-                var data = new StringBuilder(200);
-                char[] chars = new char[1024];
-                int bytesReadTotal = 0;
-
-                while (bytesReadTotal < contentLength)
-                {
-                    try
-                    {
-                        var bytesRead = reader.Read(chars, 0, 1024);
-                        bytesReadTotal += bytesRead;
-                        if (bytesRead == 0) break;
-                        data.Append(chars, 0, bytesRead);
-                    }
-                    // IOException can occur when there is a mismatch of the 'Content-Length'
-                    // because a different encoding is used
-                    // Sending a 'plain/text' payload with special characters (äüö...) is
-                    // an example of this
-                    catch (IOException) { break; }
-                    catch (Exception) { break; }
-                }
-                Content = data.ToString();
-                Console.WriteLine(data.ToString());
-            }
+            Console.WriteLine(httpRequest);
         }
+
+        public async Task<HTTPRequest> ParseRequestAsync(StreamReader reader)
+        {
+            var request = new StringBuilder();
+            string? line;
+
+            while (!string.IsNullOrWhiteSpace(line = await reader.ReadLineAsync()))
+                request.AppendLine(line);
+
+            var lines = request.ToString().Split('\n');
+            var requestLine = lines[0].Split(' ');
+            var method = requestLine[0];
+            var pathAndQuery = requestLine[1];
+            var httpVersion = requestLine[2];
+
+            var header = new Dictionary<string, string>();
+            header = lines.Skip(1).TakeWhile(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Split(": ")).ToDictionary(x => x[0], x => x[1]);
+
+            var path = pathAndQuery;
+            var query = new Dictionary<string, string>();
+
+            if (pathAndQuery.Contains('?'))
+            {
+                var parts = pathAndQuery.Split('?');
+                path = parts[0];
+                query = parts[1].Split('&').Select(x => x.Split('=')).ToDictionary(x => x[0], x => x[1]);
+            }
+
+            var body = string.Empty;
+
+            if (header.TryGetValue("Content-Length", out var contentLengthStr) && int.TryParse(contentLengthStr, out var contentLength) && contentLength > 0)
+            {
+                char[] buffer = new char[contentLength];
+                await reader.ReadAsync(buffer, 0, contentLength);
+                body = new string(buffer);
+            }
+
+            return new HTTPRequest(method: Enum.Parse<HTTPMethod>(method), httpVersion: httpVersion, path: path, queryParameters: query, headers: header, content: body);
+        }
+
+
     }
+
+
+
 
 }
