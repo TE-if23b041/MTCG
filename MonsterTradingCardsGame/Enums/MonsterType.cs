@@ -8,13 +8,13 @@ namespace MonsterTradingCardsGame.Enums
 {
     public enum MonsterType
     {
-        None,
         Goblin,
         Dragon,
         Wizard,
         Ork,
         Knight,
         Kraken,
-        FireElf
+        Elf,
+        None
     }
 }

@@ -12,8 +12,10 @@ using Npgsql.Internal;
 
 namespace MonsterTradingCardsGame.Server
 {
-    internal class RequestHandler
+    internal class RequestHandler(Router router)
     {
+        private readonly Router _router = router;
+
         public async Task HandleRequestAsync(Stream networkStream)
         {
             // curl -i -X POST http://localhost:10001/users --header "Content-Type: application/json" -d "{"Username":"kienboec", "Password":"daniel"}"
@@ -29,13 +31,13 @@ namespace MonsterTradingCardsGame.Server
             using var reader = new StreamReader(networkStream, Encoding.UTF8, leaveOpen: true);
             var httpRequest = await ParseRequestAsync(reader);
 
-
-
-
             Console.WriteLine(httpRequest);
+
+            var response = await _router.RouteAsync(httpRequest);
+            await networkStream.WriteAsync(Encoding.UTF8.GetBytes(response));
         }
 
-        public async Task<HTTPRequest> ParseRequestAsync(StreamReader reader)
+        public static async Task<HTTPRequest> ParseRequestAsync(StreamReader reader)
         {
             var request = new StringBuilder();
             string? line;

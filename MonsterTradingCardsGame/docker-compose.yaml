@@ -1,19 +1,4 @@
 ﻿services:
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    ports:
-      - "10001:10001"
-    depends_on:
-      - db
-    environment:
-      - DB_HOST=mtcg-db
-      - DB_PORT=5432
-      - DB_NAME=mtcg_db
-      - DB_USER=mtcg_user
-      - DB_PASSWORD=mtcg_password
-
   db:
     image: postgres:latest
     environment:
@@ -22,3 +7,24 @@
       POSTGRES_DB: mtcg_db
     ports:
       - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mtcg_user -d mtcg_db"]
+      interval: 2s
+      timeout: 1s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "10001:10001"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=mtcg_db
+      - DB_USER=mtcg_user
+      - DB_PASSWORD=mtcg_password

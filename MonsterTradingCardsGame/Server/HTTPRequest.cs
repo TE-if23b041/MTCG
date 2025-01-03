@@ -25,7 +25,7 @@ namespace MonsterTradingCardsGame.Server
 
         public override string ToString()
         {
-            StringBuilder sb = new StringBuilder();
+            StringBuilder sb = new();
             sb.AppendLine($"Method: {Method}");
             sb.AppendLine($"HTTPVersion: {HTTPVersion}");
             sb.AppendLine($"Path: {Path}");

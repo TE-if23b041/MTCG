@@ -16,8 +16,8 @@ namespace MonsterTradingCardsGame.Server
 
         public void RegisterRoute<TController>(string path, HTTPMethod method, Func<TController, HTTPRequest, Task<string>> handler) where TController : class
         {
-            if (!_routes.ContainsKey(path))
-                _routes[path] = new Dictionary<HTTPMethod, Func<HTTPRequest, Task<string>>>();
+            if(!_routes.ContainsKey(path))
+                _routes[path] = [];
 
             _routes[path][method] = async (request) =>
             {
@@ -29,12 +29,12 @@ namespace MonsterTradingCardsGame.Server
 
         public async Task<string> RouteAsync(HTTPRequest request) // /user/.* user schickt: /user/huber
         {
-            var matchRoute = _routes.Keys.FirstOrDefault(x => new Regex($"^{x}$").IsMatch(request.Path));
-            if (matchRoute != null && _routes[matchRoute].TryGetValue(request.Method, out var handler)) // return UserController.GetUser(request);
+            var matchRoute = _routes.Keys.FirstOrDefault(x => new Regex( $"^{x}$").IsMatch(request.Path));
+            if(matchRoute != null && _routes[matchRoute].TryGetValue(request.Method, out var handler)) // return UserController.GetUser(request);
                 return await handler(request);
 
-
-            return "HTTP1.1 404 Not Found";
+            Console.WriteLine($"{request.Path} {request.Method}: 404 Not Found");
+            return "HTTP/1.1 404 Not Found\r\nContent-Type: text/plain\r\nContent-Length: 9\r\n\r\nNot Found";
         }
 
         // POST /users

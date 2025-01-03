@@ -8,7 +8,7 @@ namespace MonsterTradingCardsGame.Enums
 {
     public enum ElementType
     {
-        None,
+        //None,
         Normal,
         Water,
         Fire
