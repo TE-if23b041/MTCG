@@ -15,7 +15,7 @@ namespace MonsterTradingCardsGame.Server
             return $"HTTP/1.1 {statusCode}" +
                 $"\r\nContent-Type: {contentType}" +
                 $"\r\nContent-Length: {data.Length} " +
-                $"\r\n\r\n{data}\r\n";
+                $"\r\n\r\n{data}";
         }
 
         public static string CreateJSONResponse(int statusCode, object data)

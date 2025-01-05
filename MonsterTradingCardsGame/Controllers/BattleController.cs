@@ -1,127 +1,175 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
+using MonsterTradingCardsGame.Database;
 using MonsterTradingCardsGame.Models;
 using MonsterTradingCardsGame.Server;
 using MonsterTradingCardsGame.Enums;
 
 namespace MonsterTradingCardsGame.Controllers
 {
-    internal class BattleController
+    internal class BattleController(UserService userService, CardService cardService)
     {
-        private const int MaxRounds = 100;
+        private readonly UserService _userService = userService;
+        private readonly CardService _cardService = cardService;
+        private static readonly ConcurrentQueue<(User, List<Card>)> BatlleQueue = new();
+        private static readonly SemaphoreSlim BattleSemaphore = new(0);
 
-        // Lists or only Cards?
-        public async Task<string> StartBattleAsync(List<Card> deck1, List<Card> deck2)
+
+        public async Task<string> BattleAsync(HTTPRequest request)
         {
-            try
-            {
-                int round = 0;
+            var user = await _userService.GetUserAsync(request.Headers["Authorization"].Split(" ")[1].Split("-")[0]);
+            var deck = await _cardService.GetDeckAsync(user);
 
-                while (deck1.Count > 0 && deck2.Count > 0 && round < MaxRounds)
+            if (deck.Count != 4)
+                return ResponseBuilder.CreatePlainTextReponse(400, "Invalid deck size");
+
+            BatlleQueue.Enqueue((user, deck));
+            Console.WriteLine($"{user.Username} added to battle queue. Queue size: {BatlleQueue.Count}");
+
+            // singnals that the player is ready
+            BattleSemaphore.Release();
+
+            // waiting for another player
+            await BattleSemaphore.WaitAsync();
+
+            (User, List<Card>) player1 = default;
+            (User, List<Card>) player2 = default;
+
+            lock (BatlleQueue)
+            {
+                if (BatlleQueue.Count >= 2)
                 {
-                    round++;
-                    var card1 = SelectRandomCard(deck1);
-                    var card2 = SelectRandomCard(deck2);
-
-                    double damage1 = CalculateDamage(card1, card2);
-                    double damage2 = CalculateDamage(card2, card1);
-
-                    if (damage1 > damage2)
-                    {
-                        deck1.Add(card2);
-                        deck2.Remove(card2);
-                    }
-                    else if (damage2 > damage1)
-                    {
-                        deck2.Add(card1);
-                        deck1.Remove(card1);
-                    }
-
+                    BatlleQueue.TryDequeue(out player1);
+                    BatlleQueue.TryDequeue(out player2);
                 }
+            }
 
-                if (deck1.Count > deck2.Count)
-                    return ResponseBuilder.CreatePlainTextReponse(200, "Player 1 wins the battle");
+            // check if both players are available
+            if (!player1.Item1.Equals(default(User)) && !player2.Item1.Equals(default(User)))
+            {
+                var log = StartBattle(player1, player2);
+                await UpdatePlayerStats(player1, player2);
+                return ResponseBuilder.CreatePlainTextReponse(200, string.Join("\n", log));
+            }
 
-                else if (deck2.Count > deck1.Count)
-                    return ResponseBuilder.CreatePlainTextReponse(200, "Player 2 wins the battle");
+            return ResponseBuilder.CreatePlainTextReponse(200, "Waiting for opponent");
+        }
 
+        private List<string> StartBattle((User User, List<Card> Cards) player1, (User User, List<Card> Cards) player2)
+        {
+            var log = new List<string>();
+            var rnd = new Random();
+
+            var rounds = 100;
+            for (int i = 0; i < rounds; i++)
+            {
+                if (player1.Cards.Count == 0 || player2.Cards.Count == 0)
+                    break;
+
+                var card1 = player1.Cards[rnd.Next(player1.Cards.Count)];
+                var card2 = player2.Cards[rnd.Next(player2.Cards.Count)];
+
+                log.Add($"Round {i+1}: {card1.Name} vs {card2.Name}");
+
+                var damage1 = CalculateDamage(card1, card2);
+                var damage2 = CalculateDamage(card2, card1);
+
+                log.Add($"Damage: {damage1} vs {damage2}");
+
+                if (damage1 > damage2)
+                {
+                    player2.Cards.Remove(card2);
+                    player1.Cards.Add(card2);
+                    log.Add($"{player1.User.Username} wins with {card1.Name}");
+                }
+                else if (damage1 < damage2)
+                {
+                    player1.Cards.Remove(card1);
+                    player2.Cards.Add(card1);
+                    log.Add($"{player2.User.Username} wins with {card2.Name}");
+                }
                 else
-                    return ResponseBuilder.CreatePlainTextReponse(200, "It's a draw");
+                {
+                    log.Add("The Round is a Draw");
+                }
             }
-            catch (Exception ex)
+
+            log.Add("Battle finished");
+            log.Add($"{player1.User.Username} has {player1.Cards.Count} cards left");
+            log.Add($"{player2.User.Username} has {player2.Cards.Count} cards left");
+            
+            if(player1.Cards.Count == 0)
             {
-                Console.WriteLine(ex.Message);
-                return ResponseBuilder.CreatePlainTextReponse(500, "Internal server error");
+                log.Add($"{player2.User.Username} wins the battle");
             }
-        }
-
-        private Card SelectRandomCard(List<Card> deck)
-        {
-            Random random = new Random();
-            int index = random.Next(deck.Count);
-            return deck[index];
-        }
-
-        private double CalculateDamage(Card attacker, Card defender)
-        {
-
-            if (SpecialtyCheck(attacker, defender))
-                return double.MaxValue;
-
-            if (attacker.CardType == CardType.Spell || defender.CardType == CardType.Spell)
+            else if (player2.Cards.Count == 0)
             {
-                double multiplier = GetElementMultiplier(attacker.ElementType, defender.ElementType);
-                return attacker.Damage * multiplier;
+                log.Add($"{player1.User.Username} wins the battle");
+            }
+            else
+            {
+                log.Add("-->| The Battle is a Draw |<--");
             }
 
-            // monster vs monster - ignore element type
-            return attacker.Damage;
+            return log;
         }
 
-        private bool SpecialtyCheck(Card attacker, Card defender)
+        private static double CalculateDamage(Card attacker, Card defender)
         {
             if (attacker.MonsterType == MonsterType.Goblin && defender.MonsterType == MonsterType.Dragon)
-                return true;
+                return 0;
+            if (attacker.MonsterType == MonsterType.Ork && defender.MonsterType == MonsterType.Wizard)
+                return 0;
+            if (attacker.MonsterType == MonsterType.Knight && defender.CardType == CardType.Spell && defender.ElementType == ElementType.Water)
+                return 0;
+            if (attacker.CardType == CardType.Spell && defender.MonsterType == MonsterType.Kraken)
+                return 0;
+            if (attacker.MonsterType == MonsterType.Dragon && defender.MonsterType == MonsterType.Elf && defender.ElementType == ElementType.Fire)
+                return 0;
 
-            if (attacker.MonsterType == MonsterType.Wizard && defender.MonsterType == MonsterType.Ork)
-                return true;
+            double multiplier = 1.0;
 
-            if (attacker.MonsterType == MonsterType.Knight && defender.ElementType == ElementType.Water)
-                return true;
+            if (attacker.ElementType == ElementType.Water && defender.ElementType == ElementType.Fire)
+                multiplier = 2.0;
+            if (attacker.ElementType == ElementType.Fire && defender.ElementType == ElementType.Normal)
+                multiplier = 2.0;
+            if (attacker.ElementType == ElementType.Normal && defender.ElementType == ElementType.Water)
+                multiplier = 2.0;
 
-            if (attacker.MonsterType == MonsterType.Kraken && defender.CardType == CardType.Spell)
-                return true;
 
-            if (attacker.MonsterType == MonsterType.Elf && defender.MonsterType == MonsterType.Dragon)
-                return false;
+            if (attacker.ElementType == ElementType.Fire && defender.ElementType == ElementType.Water)
+                multiplier = 0.5;
+            if (attacker.ElementType == ElementType.Normal && defender.ElementType == ElementType.Fire)
+                multiplier = 0.5;
+            if (attacker.ElementType == ElementType.Water && defender.ElementType == ElementType.Normal)
+                multiplier = 0.5;
 
-            return false;
+            if (attacker.CardType == CardType.Monster && defender.CardType == CardType.Monster)
+                multiplier = 1.0;
+
+            return attacker.Damage * multiplier;
         }
 
-        private double GetElementMultiplier(ElementType attacker, ElementType defender)
+        private async Task UpdatePlayerStats((User User, List<Card> Cards) player1, (User User, List<Card> Cards) player2)
         {
-            if (attacker == ElementType.Water && defender == ElementType.Fire)
-                return 2.0;
+            if (player2.Cards.Count == 0)
+            {
+                player1.User.Elo += 3;
+                player2.User.Elo -= 5;
+            }
+            else if (player1.Cards.Count == 0)
+            {
+                player2.User.Elo += 3;
+                player1.User.Elo -= 5;
+            }
 
-            if (attacker == ElementType.Fire && defender == ElementType.Normal)
-                return 2.0;
-
-            if (attacker == ElementType.Normal && defender == ElementType.Water)
-                return 2.0;
-
-            if (defender == ElementType.Water && attacker == ElementType.Fire)
-                return 0.5;
-
-            if (defender == ElementType.Fire && attacker == ElementType.Normal)
-                return 0.5;
-
-            if (defender == ElementType.Normal && attacker == ElementType.Water)
-                return 0.5;
-
-            return 1.0;
+            await _userService.UpdateUserAsync(player1.User);
+            await _userService.UpdateUserAsync(player2.User);
         }
     }
 }

@@ -75,11 +75,5 @@ namespace MonsterTradingCardsGame.Server
 
             return new HTTPRequest(method: Enum.Parse<HTTPMethod>(method), httpVersion: httpVersion, path: path, queryParameters: query, headers: header, content: body);
         }
-
-
     }
-
-
-
-
 }

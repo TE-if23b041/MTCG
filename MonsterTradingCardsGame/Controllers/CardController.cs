@@ -16,6 +16,33 @@ namespace MonsterTradingCardsGame.Controllers
         private readonly UserService _userService = userService;
         private readonly CardService _cardService = cardService;
 
+        public async Task<string> ConfigureDeckAsync(HTTPRequest request)
+        { // 2 errors: 1. either wrong cards or 2. invalid input (e.g. 3 cards not 4)
+            try
+            {
+                // --header "Authorization
+                var username = request.Headers["Authorization"].Split(" ")[1].Split("-")[0];
+                var user = await _userService.GetUserAsync(username);
+                var deck = JsonConvert.DeserializeObject<List<string>>(request.Content) ?? throw new Exception("Invalid input");
+                if (deck.Count != 4)
+                    throw new InvalidOperationException("Bad request - Invalid deck size");
+
+                await _cardService.ConfigureDeckAsync(user, deck);
+                return ResponseBuilder.CreatePlainTextReponse(201, "OK");
+            }
+            catch (InvalidOperationException ex)
+            {
+                Console.WriteLine(ex.Message);
+                return ResponseBuilder.CreatePlainTextReponse(401, ex.Message);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+                Console.WriteLine(ex.StackTrace);
+                return ResponseBuilder.CreatePlainTextReponse(500, "Internal server error");
+            }
+        }
+
         public async Task<string> CreatePackageAsync(HTTPRequest request)
         {
             try
@@ -66,8 +93,12 @@ namespace MonsterTradingCardsGame.Controllers
                 // --header "Authorization
                 var username = request.Headers["Authorization"].Split(" ")[1].Split("-")[0];
                 var user = await _userService.GetUserAsync(username);
+
+
                 await _cardService.AcquriePackageAsync(user);
                 return ResponseBuilder.CreatePlainTextReponse(201, "OK");
+
+
             }
             catch (InvalidOperationException ex)
             {
@@ -85,17 +116,51 @@ namespace MonsterTradingCardsGame.Controllers
         {
             try
             {
+                if (!request.Headers.ContainsKey("Authorization"))
+                    throw new InvalidOperationException("Unauthorized");
+
                 var username = request.Headers["Authorization"].Split(" ")[1].Split("-")[0];
                 var user = await _userService.GetUserAsync(username);
                 var cards = await _cardService.GetCardsAsync(user);
 
                 return ResponseBuilder.CreateJSONResponse(200, cards);
             }
-            catch
+            catch (InvalidOperationException ex)
             {
+                Console.WriteLine(ex.Message);
+                return ResponseBuilder.CreatePlainTextReponse(401, ex.Message);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
                 return ResponseBuilder.CreatePlainTextReponse(500, "Internal server error");
 
             }
         }
+
+        public async Task<string> GetDeckAsync(HTTPRequest request)
+        {
+            try
+            {
+                var username = request.Headers["Authorization"].Split(" ")[1].Split("-")[0];
+                var user = await _userService.GetUserAsync(username);
+                var deck = await _cardService.GetDeckAsync(user);
+
+                // check query for format
+                if (request.QueryParameters.TryGetValue("format", out string? format) && format == "plain")
+                {
+                    var formattedDeck = deck.Select(card => $"{card.Name} ({card.Damage} Damage, {card.MonsterType}, {card.ElementType})");
+                    return ResponseBuilder.CreatePlainTextReponse(200, string.Join("\n", formattedDeck));
+                }
+
+                return ResponseBuilder.CreateJSONResponse(200, deck);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+                return ResponseBuilder.CreatePlainTextReponse(500, "Internal server error");
+            }
+        }
     }
+
 }

@@ -7,26 +7,12 @@ using Npgsql;
 
 namespace MonsterTradingCardsGame.Database
 {
-    internal class DatabaseManager
+    public class DatabaseManager(string connectionString)
     {
-        private readonly string _connectionString;
+        private readonly string _connectionString = connectionString;
 
-        public DatabaseManager(string connectionString)
+        public virtual NpgsqlConnection GetConnection()
         {
-            if (string.IsNullOrEmpty(connectionString))
-            {
-                throw new ArgumentException("Connection string cannot be null or empty");
-            }
-            _connectionString = connectionString;
-        }
-        public NpgsqlConnection GetConnection()
-        {
-            if (string.IsNullOrEmpty(_connectionString))
-            {
-                throw new ArgumentException("Connection string cannot be null or empty");
-            }
-
-            Console.WriteLine($"Connection String: {_connectionString}");
             return new NpgsqlConnection(_connectionString);
         }
 
@@ -43,7 +29,10 @@ namespace MonsterTradingCardsGame.Database
                 password TEXT NOT NULL,
                 coins INT NOT NULL DEFAULT 20,
                 elo INT NOT NULL DEFAULT 100,
-                deck VARCHAR(50)[]
+                name VARCHAR(100) NOT NULL DEFAULT 'no name',
+                bio VARCHAR(100) NOT NULL DEFAULT 'no bio',
+                image VARCHAR(100) NOT NULL DEFAULT 'no image',
+                deck VARCHAR(50)[] DEFAULT '{}'::VARCHAR[]
             );", connection))
             {
                 command.ExecuteNonQuery();
@@ -77,6 +66,7 @@ namespace MonsterTradingCardsGame.Database
                 command.ExecuteNonQuery();
             }
 
+            
         }
     }
 }

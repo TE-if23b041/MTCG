@@ -27,11 +27,13 @@ namespace MonsterTradingCardsGame.Server
             var databaseManager = new DatabaseManager(connectionString);
             databaseManager.InitializeDatabase();
             services.AddSingleton<DatabaseManager>(databaseManager);
-
-            services.AddSingleton<UserService>();
+            
             services.AddSingleton<UserController>();
-            services.AddSingleton<CardService>();
             services.AddSingleton<CardController>();
+            services.AddSingleton<BattleController>();
+
+            services.AddSingleton<CardService>();
+            services.AddSingleton<UserService>();
 
             var serviceProvider = services.BuildServiceProvider();
             _router = new Router(serviceProvider);
@@ -41,7 +43,8 @@ namespace MonsterTradingCardsGame.Server
 
         public static void RegisterRoute(Router router)
         {
-            router.RegisterRoute<UserController>("/users", HTTPMethod.GET, (controller, request) => controller.GetUserAsync(request));
+            // users
+            //router.RegisterRoute<UserController>("/users", HTTPMethod.GET, (controller, request) => controller.GetUserAsync(request));
             router.RegisterRoute<UserController>("/users", HTTPMethod.POST, (controller, request) => controller.RegisterUserAsync(request));
 
             // session
@@ -49,13 +52,28 @@ namespace MonsterTradingCardsGame.Server
 
             // packages
             router.RegisterRoute<CardController>("/packages", HTTPMethod.POST, (controller, request) => controller.CreatePackageAsync(request));
-            router.RegisterRoute<CardController>("/transactions/packages", HTTPMethod.GET, (controller, request) => controller.AcquirePackageAsync(request));
+            router.RegisterRoute<CardController>("/transactions/packages", HTTPMethod.POST, (controller, request) => controller.AcquirePackageAsync(request));
 
             // cards
-            //router.RegisterRoute<CardController>("/cards", HTTPMethod.GET, (controller, request) => controller.GetCardAsync(request));
+            router.RegisterRoute<CardController>("/cards", HTTPMethod.GET, (controller, request) => controller.GetCardsAsync(request));
+
+            // deck 
+            router.RegisterRoute<CardController>("/deck", HTTPMethod.GET, (controller, request) => controller.GetDeckAsync(request));
+            router.RegisterRoute<CardController>("/deck", HTTPMethod.PUT, (controller, request) => controller.ConfigureDeckAsync(request));
+            router.RegisterRoute<CardController>("/deck", HTTPMethod.POST, (controller, request) => controller.ConfigureDeckAsync(request));
+
+            // configure user
+            router.RegisterRoute<UserController>("/users/.*", HTTPMethod.PUT, (controller, request) => controller.UpdateUserAsync(request));
+            router.RegisterRoute<UserController>("/users/.*", HTTPMethod.GET, (controller, request) => controller.GetUserAsync(request));
+
+            // stats
+            router.RegisterRoute<UserController>("/stats", HTTPMethod.GET, (controller, request) => controller.GetUserStatsAsync(request));
+
+            // scoreboard
+            router.RegisterRoute<UserController>("/scoreboard", HTTPMethod.GET, (controller, request) => controller.GetScoreboardAsync(request));
 
             // battle
-            //router.RegisterRoute<BattleController>("/battles", HTTPMethod.POST, (controller, request) => controller.CreateBattleAsync(request));
+            router.RegisterRoute<BattleController>("/battles", HTTPMethod.POST, (controller, request) => controller.BattleAsync(request));
         }
 
         public async Task Start()

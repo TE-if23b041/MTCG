@@ -12,6 +12,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
     <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.21.0" />
+    <PackageReference Include="Moq" Version="4.20.72" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="Npgsql" Version="9.0.2" />
     <PackageReference Include="NUnit.Analyzers" Version="4.5.0">
@@ -20,5 +21,11 @@
     </PackageReference>
     <PackageReference Include="NUnit3TestAdapter" Version="4.6.0" />
   </ItemGroup>
+
+	<ItemGroup>
+		<AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+			<_Parameter1>MonsterTradingCardsGame_test</_Parameter1>
+		</AssemblyAttribute>
+	</ItemGroup>
 
 </Project>

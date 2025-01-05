@@ -1,1 +1,1 @@
-# MTCG
+# MonsterTradingCardsGame

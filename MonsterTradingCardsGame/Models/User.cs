@@ -13,6 +13,9 @@ namespace MonsterTradingCardsGame.Models
         public string Password { get; set; }
         public int Coins { get; set; }
         public int Elo { get; set; }
+        public string Name { get; set; }
+        public string Bio { get; set; }
+        public string Image { get; set; }
         public string[] Deck { get; set; } // Deck 4x Card 
     }
 }
