@@ -1,3 +1,7 @@
+# MonsterTradingCardsGame
+
+https://github.com/TE-if23b041/MTCG
+
 Instructions for Running the Program
 
 1) Start Docker Desktop
