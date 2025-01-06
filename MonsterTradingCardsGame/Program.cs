@@ -9,10 +9,10 @@ namespace MonsterTradingCardsGame
     {
         static async Task Main()
         {
-            Console.WriteLine("Los gehts");
+            Console.WriteLine("Lets Go");
 
             var server = new HTTPServer(IPAddress.Any, 10001, BuildConnectionStringFromEnv());
-            Console.WriteLine($"Server läuft auf URL: {IPAddress.Any}");
+            Console.WriteLine($"Server is running on URL: {IPAddress.Any}");
 
             await server.Start();
 

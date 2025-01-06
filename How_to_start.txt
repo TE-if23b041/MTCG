@@ -1,0 +1,10 @@
+1) open Docker-Desktop
+2) open the Project in/with ..\MTCG\MonsterTradingCardsGame.sln or ..\MTCG\MonsterTradingCardsGame\MonsterTradingCardsGame.sln
+3) write in the PowerShell (in ..\MTCG\MonsterTradingCardsGame):
+		docker-compose up --build
+4) after the Server is running inside the Docker:
+		app-1  | Lets Go
+		app-1  | Server is running on URL: 0.0.0.0
+   you can execute the Curl
+5) to delete the Database inside the Docker write in the PowerShell (in ..\MTCG\MonsterTradingCardsGame): 
+		docker-compose down -v

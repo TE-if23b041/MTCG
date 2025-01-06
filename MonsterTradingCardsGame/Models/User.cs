@@ -16,6 +16,6 @@ namespace MonsterTradingCardsGame.Models
         public string Name { get; set; }
         public string Bio { get; set; }
         public string Image { get; set; }
-        public string[] Deck { get; set; } // Deck 4x Card 
+        public string[] Deck { get; set; } // Deck 4x Cards saved in the DB 
     }
 }

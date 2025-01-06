@@ -8,35 +8,39 @@ using Npgsql;
 
 namespace MonsterTradingCardsGame.Database
 {
+    // Provides user-related operations on the database
     public class UserService(DatabaseManager databaseManager)
     {
-        private readonly DatabaseManager _databaseManager = databaseManager;
+        private readonly DatabaseManager _databaseManager = databaseManager; // Database manager instance
 
-        public async Task UpdateUserAsync(User user)
+        // Updates the ELO score of a user in the database
+        public virtual async Task UpdateUserAsync(User user)
         {
-            using var connection = _databaseManager.GetConnection();
-            connection.Open();
-            var query = @"UPDATE users SET elo = @elo WHERE id = @id";
-            using var command = new NpgsqlCommand(query, connection);
-            command.Parameters.AddWithValue("elo", user.Elo);
-            command.Parameters.AddWithValue("id", user.Id);
-            await command.ExecuteNonQueryAsync();
+            using var connection = _databaseManager.GetConnection(); // Get a database connection
+            connection.Open(); // Open the connection
+            var query = @"UPDATE users SET elo = @elo WHERE id = @id"; // Query to update user's ELO
+            using var command = new NpgsqlCommand(query, connection); // Create command with query
+            command.Parameters.AddWithValue("elo", user.Elo); // Set ELO parameter
+            command.Parameters.AddWithValue("id", user.Id); // Set ID parameter
+            await command.ExecuteNonQueryAsync(); // Execute the query
         }
-        public async Task<User> GetUserAsync(string username)
+
+        // Retrieves a user by username from the database
+        public virtual async Task<User> GetUserAsync(string username)
         {
-            using var connection = _databaseManager.GetConnection();
-            connection.Open();
+            using var connection = _databaseManager.GetConnection(); // Get a database connection
+            connection.Open(); // Open the connection
+            var query = @"SELECT * FROM users WHERE username = @username"; // Query to fetch user details
 
-            var query = @"SELECT * FROM users WHERE username = @username";
+            using var command = new NpgsqlCommand(query, connection); // Create command with query
+            command.Parameters.AddWithValue("username", username); // Set username parameter
 
-            using var command = new NpgsqlCommand(query, connection);
-            command.Parameters.AddWithValue("username", username);
+            using var reader = await command.ExecuteReaderAsync(); // Execute query and read data
 
-            using var reader = await command.ExecuteReaderAsync();
-
-            if (!reader.Read())
+            if (!reader.Read()) // If no user is found, throw an exception
                 throw new Exception("User not found");
 
+            // Map the database row to a User object
             return new User
             {
                 Id = reader.GetInt32(0),
@@ -50,29 +54,31 @@ namespace MonsterTradingCardsGame.Database
             };
         }
 
-        public async Task RegisterUserAsync(User user)
+        // Registers a new user in the database
+        public virtual async Task RegisterUserAsync(User user)
         {
-            using var connection = _databaseManager.GetConnection();
-            connection.Open();
-            var query = @"INSERT INTO users (username, password) VALUES (@username, @password)";
-            using var command = new NpgsqlCommand(query, connection);
-            command.Parameters.AddWithValue("username", user.Username);
-            command.Parameters.AddWithValue("password", user.Password);
-            await command.ExecuteNonQueryAsync();
+            using var connection = _databaseManager.GetConnection(); // Get a database connection
+            connection.Open(); // Open the connection
+            var query = @"INSERT INTO users (username, password) VALUES (@username, @password)"; // Insert query
+            using var command = new NpgsqlCommand(query, connection); // Create command with query
+            command.Parameters.AddWithValue("username", user.Username); // Set username parameter
+            command.Parameters.AddWithValue("password", user.Password); // Set password parameter
+            await command.ExecuteNonQueryAsync(); // Execute the query
         }
 
+        // Updates user information such as name, bio, and image
         public async Task UpdateUserAync(User user, Dictionary<string, string> information)
         {
-            using var connection = _databaseManager.GetConnection();
-            connection.Open();
+            using var connection = _databaseManager.GetConnection(); // Get a database connection
+            connection.Open(); // Open the connection
 
-            // Normalize the keys to lowercase
+            // Normalize dictionary keys to lowercase for consistent access
             var normalizedInformation = information.ToDictionary(
                 kvp => kvp.Key.ToLower(),
                 kvp => kvp.Value
             );
 
-            // Check if the required keys are present
+            // Ensure required keys are present in the dictionary
             if (!normalizedInformation.TryGetValue("name", out var name) ||
                 !normalizedInformation.TryGetValue("bio", out var bio) ||
                 !normalizedInformation.TryGetValue("image", out var image))
@@ -80,25 +86,29 @@ namespace MonsterTradingCardsGame.Database
                 throw new Exception("Missing required keys: name, bio, or image.");
             }
 
+            // Query to update user details
             var query = @"UPDATE users SET name = @name, bio = @bio, image = @image WHERE id = @id";
-            using var command = new NpgsqlCommand(query, connection);
+            using var command = new NpgsqlCommand(query, connection); // Create command with query
 
-            command.Parameters.AddWithValue("name", name);
-            command.Parameters.AddWithValue("bio", bio);
-            command.Parameters.AddWithValue("image", image);
-            command.Parameters.AddWithValue("id", user.Id);
+            command.Parameters.AddWithValue("name", name); // Set name parameter
+            command.Parameters.AddWithValue("bio", bio); // Set bio parameter
+            command.Parameters.AddWithValue("image", image); // Set image parameter
+            command.Parameters.AddWithValue("id", user.Id); // Set ID parameter
 
-            await command.ExecuteNonQueryAsync();
+            await command.ExecuteNonQueryAsync(); // Execute the query
         }
 
+        // Retrieves all users from the database
         public async Task<List<User>> GetUsersAsync()
         {
-            using var connection = _databaseManager.GetConnection();
-            await connection.OpenAsync();
-            var query = @"SELECT * FROM users";
-            using var command = new NpgsqlCommand(query, connection);
-            using var reader = await command.ExecuteReaderAsync();
-            var users = new List<User>();
+            using var connection = _databaseManager.GetConnection(); // Get a database connection
+            await connection.OpenAsync(); // Open the connection asynchronously
+            var query = @"SELECT * FROM users"; // Query to fetch all users
+            using var command = new NpgsqlCommand(query, connection); // Create command with query
+            using var reader = await command.ExecuteReaderAsync(); // Execute query and read data
+            var users = new List<User>(); // List to store users
+
+            // Iterate through the result set and map each row to a User object
             while (reader.Read())
             {
                 users.Add(new User
@@ -113,7 +123,8 @@ namespace MonsterTradingCardsGame.Database
                     Image = reader.GetString(7)
                 });
             }
-            return users;
+
+            return users; // Return the list of users
         }
     }
 }

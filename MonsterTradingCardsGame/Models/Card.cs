@@ -31,16 +31,17 @@ namespace MonsterTradingCardsGame.Models
 
     public struct Card
     {
-        public string Id { get; set; }  //UUIDv4
+        public string Id { get; set; }
         public string Name { get; set; }
         public double Damage { get; set; }
         public MonsterType MonsterType { get; set; }
         public CardType CardType { get; set; }
         public ElementType ElementType { get; set; }
 
+        // sets the type of the card based on the name
         public static MonsterType DetermineMonsterType(string name)
         {
-            if(name.Contains("Goblin"))//, StringComparison.OrdinalIgnoreCase))
+            if(name.Contains("Goblin"))
                 return MonsterType.Goblin;
             if (name.Contains("Dragon"))
                 return MonsterType.Dragon;
@@ -57,6 +58,7 @@ namespace MonsterTradingCardsGame.Models
             return MonsterType.None;
         }
 
+        //  sets the type of the card based on the name
         public static CardType DetermineCardType(string name)
         {
             if (name.Contains("Spell"))
@@ -64,6 +66,7 @@ namespace MonsterTradingCardsGame.Models
             return CardType.Monster;
         }
 
+        // sets the type of the card based on the name
         public static ElementType DetermineElementType(string name)
         {
             if (name.Contains("Water"))

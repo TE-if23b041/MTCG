@@ -10,92 +10,86 @@ using MonsterTradingCardsGame.Models;
 using MonsterTradingCardsGame.Server;
 using MonsterTradingCardsGame.Enums;
 
-namespace MonsterTradingCardsGame.Controllers
+namespace MonsterTrasdfsdfingCardsGame.Controllers
 {
-    // Controller to handle battles between users
     internal class BattleController(UserService userService, CardService cardService)
     {
-        private readonly UserService _userService = userService; // Handles user-related operations
-        private readonly CardService _cardService = cardService; // Handles card-related operations
+        private readonly UserService _userService = userService;
+        private readonly CardService _cardService = cardService;
+        private static readonly ConcurrentQueue<(User, List<Card>)> BatlleQueue = new();
+        private static readonly SemaphoreSlim BattleSemaphore = new(0);
 
-        private static readonly ConcurrentQueue<(User, List<Card>)> BattleQueue = new(); // Queue to hold players waiting for a battle
-        private static readonly SemaphoreSlim BattleSemaphore = new(0); // Semaphore to manage player matching
 
-        // Handles a battle request
         public virtual async Task<string> BattleAsync(HTTPRequest request)
         {
-            // Get the user and their deck
             var user = await _userService.GetUserAsync(request.Headers["Authorization"].Split(" ")[1].Split("-")[0]);
             var deck = await _cardService.GetDeckAsync(user);
 
-            // Ensure the user has exactly 4 cards in their deck
             if (deck.Count != 4)
                 return ResponseBuilder.CreatePlainTextReponse(400, "Invalid deck size");
 
-            // Add the user and their deck to the battle queue
-            BattleQueue.Enqueue((user, deck));
-            Console.WriteLine($"{user.Username} added to battle queue. Queue size: {BattleQueue.Count}");
+            BatlleQueue.Enqueue((user, deck));
+            Console.WriteLine($"{user.Username} added to battle queue. Queue size: {BatlleQueue.Count}");
 
-            // Signal readiness and wait for another player
+            // singnals that the player is ready
             BattleSemaphore.Release();
+
+            // waiting for another player
             await BattleSemaphore.WaitAsync();
 
             (User, List<Card>) player1 = default;
             (User, List<Card>) player2 = default;
 
-            lock (BattleQueue)
+            lock (BatlleQueue)
             {
-                if (BattleQueue.Count >= 2)
+                if (BatlleQueue.Count >= 2)
                 {
-                    BattleQueue.TryDequeue(out player1);
-                    BattleQueue.TryDequeue(out player2);
+                    BatlleQueue.TryDequeue(out player1);
+                    BatlleQueue.TryDequeue(out player2);
                 }
             }
 
-            // Start the battle if two players are available
+            // check if both players are available
             if (!player1.Item1.Equals(default(User)) && !player2.Item1.Equals(default(User)))
             {
                 var log = StartBattle(player1, player2);
-                await UpdatePlayerStats(player1, player2); // Update player stats after the battle
-                return ResponseBuilder.CreatePlainTextReponse(200, string.Join("\n", log)); // Return the battle log
+                await UpdatePlayerStats(player1, player2);
+                return ResponseBuilder.CreatePlainTextReponse(200, string.Join("\n", log));
             }
 
             return ResponseBuilder.CreatePlainTextReponse(200, "Waiting for opponent");
         }
 
-        // Simulates a battle between two players
         public List<string> StartBattle((User User, List<Card> Cards) player1, (User User, List<Card> Cards) player2)
         {
             var log = new List<string>();
             var rnd = new Random();
-            var currentWeather = GetRandomWeather(); // Generate random initial weather
+            var currentWeather = GetRandomWeather();
             log.Add($"Initial Weather: {currentWeather}");
 
-            var rounds = 100; // Maximum number of rounds
-            for (int i = 1; i <= rounds; i++)
+            var rounds = 100;
+            for (int i = 1; i < rounds; i++)
             {
-                // Change weather every 10 rounds
+                // WeatherType can change every 10 rounds
                 if (i % 10 == 0)
                 {
                     currentWeather = GetRandomWeather();
                     log.Add($"Weather changed to: {currentWeather}");
                 }
 
-                // End the battle if one player has no cards left
                 if (player1.Cards.Count == 0 || player2.Cards.Count == 0)
                     break;
 
-                // Select random cards from each player
                 var card1 = player1.Cards[rnd.Next(player1.Cards.Count)];
                 var card2 = player2.Cards[rnd.Next(player2.Cards.Count)];
 
-                // Calculate damage for each card
+                log.Add($"Round {i}: {card1.Name} vs {card2.Name}");
+
                 var damage1 = CalculateDamage(card1, card2, currentWeather);
                 var damage2 = CalculateDamage(card2, card1, currentWeather);
 
-                log.Add($"Round {i}: {card1.Name} (Damage: {damage1}) vs {card2.Name} (Damage: {damage2})");
+                log.Add($"Damage: {damage1} vs {damage2}");
 
-                // Determine the winner of the round
                 if (damage1 > damage2)
                 {
                     player2.Cards.Remove(card2);
@@ -114,7 +108,6 @@ namespace MonsterTradingCardsGame.Controllers
                 }
             }
 
-            // Log the result of the battle
             log.Add("Battle finished");
             log.Add($"{player1.User.Username} has {player1.Cards.Count} cards left");
             log.Add($"{player2.User.Username} has {player2.Cards.Count} cards left");
@@ -135,10 +128,9 @@ namespace MonsterTradingCardsGame.Controllers
             return log;
         }
 
-        // Calculates the damage of an attack considering weather and element interactions
         public static double CalculateDamage(Card attacker, Card defender, WeatherType weather)
         {
-            // Special rules for monster interactions
+            // basic rules
             if (attacker.MonsterType == MonsterType.Goblin && defender.MonsterType == MonsterType.Dragon)
                 return 0;
             if (attacker.MonsterType == MonsterType.Ork && defender.MonsterType == MonsterType.Wizard)
@@ -150,8 +142,9 @@ namespace MonsterTradingCardsGame.Controllers
             if (attacker.MonsterType == MonsterType.Dragon && defender.MonsterType == MonsterType.Elf && defender.ElementType == ElementType.Fire)
                 return 0;
 
-            // Weather-based multipliers
             double attackerWeatherMultiplier = 1.0;
+
+            // weather effects
             switch (weather)
             {
                 // weather Sunny = Nomral cards a buffed 
@@ -173,21 +166,31 @@ namespace MonsterTradingCardsGame.Controllers
                     break;
             }
 
-            // Element-based multipliers
             double elementMultiplier = 1.0;
+
+            // element vs element
             if (attacker.ElementType == ElementType.Water && defender.ElementType == ElementType.Fire)
                 elementMultiplier = 2.0;
-            else if (attacker.ElementType == ElementType.Fire && defender.ElementType == ElementType.Water)
+            if (attacker.ElementType == ElementType.Fire && defender.ElementType == ElementType.Normal)
+                elementMultiplier = 2.0;
+            if (attacker.ElementType == ElementType.Normal && defender.ElementType == ElementType.Water)
+                elementMultiplier = 2.0;
+
+
+            if (attacker.ElementType == ElementType.Fire && defender.ElementType == ElementType.Water)
+                elementMultiplier = 0.5;
+            if (attacker.ElementType == ElementType.Normal && defender.ElementType == ElementType.Fire)
+                elementMultiplier = 0.5;
+            if (attacker.ElementType == ElementType.Water && defender.ElementType == ElementType.Normal)
                 elementMultiplier = 0.5;
 
-            // Default monster vs monster interaction
+            // monster vs monster
             if (attacker.CardType == CardType.Monster && defender.CardType == CardType.Monster)
                 elementMultiplier = 1.0;
 
             return attacker.Damage * elementMultiplier * attackerWeatherMultiplier;
         }
 
-        // Updates player stats after a battle
         public async Task UpdatePlayerStats((User User, List<Card> Cards) player1, (User User, List<Card> Cards) player2)
         {
             if (player2.Cards.Count == 0)
@@ -201,12 +204,10 @@ namespace MonsterTradingCardsGame.Controllers
                 player1.User.Elo -= 5;
             }
 
-            // Save updated stats to the database
             await _userService.UpdateUserAsync(player1.User);
             await _userService.UpdateUserAsync(player2.User);
         }
 
-        // Generates a random weather condition
         private static WeatherType GetRandomWeather()
         {
             return (WeatherType)new Random().Next(Enum.GetValues<WeatherType>().Length);

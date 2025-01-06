@@ -6,10 +6,12 @@ using System.Threading.Tasks;
 
 namespace MonsterTradingCardsGame.Enums
 {
-    public enum ElementType
-    {
-        Normal,
-        Water,
-        Fire
-    }
+        public enum WeatherType
+        {
+            Sunny,
+            Rain,
+            Hot
+            
+        }
+    
 }

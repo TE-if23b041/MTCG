@@ -5,29 +5,31 @@ using Npgsql;
 
 namespace MonsterTradingCardsGame.Database
 {
-    internal class CardService(DatabaseManager databaseManager)
+    // Provides services related to card operations in the database
+    public class CardService(DatabaseManager databaseManager)
     {
-        private readonly DatabaseManager _databaseManager = databaseManager;
+        private readonly DatabaseManager _databaseManager = databaseManager; // Database manager instance
 
-
-
-        public async Task InsertPackageAsync(List<Card> package)
+        // Inserts a package of cards into the database
+        public virtual async Task InsertPackageAsync(List<Card> package)
         {
             using var connection = _databaseManager.GetConnection();
             await connection.OpenAsync();
-
             using var transaction = connection.BeginTransaction();
 
             try
             {
+                // Insert a new package and retrieve its ID
                 var packageQuery = @"INSERT INTO packages DEFAULT VALUES RETURNING id";
                 using var packageCommand = new NpgsqlCommand(packageQuery, connection, transaction);
                 var packageId = await packageCommand.ExecuteScalarAsync() ?? throw new Exception("Failed to insert package");
 
-                var cardQuery = @"INSERT INTO cards (id, name, damage, element_type, card_type, monster_type, package_id) VALUES
-                                (@id, @name, @damage, @element_type, @card_type, @monster_type, @package_id)";
+                // Insert each card into the database and associate it with the package
+                var cardQuery = @"INSERT INTO cards (id, name, damage, element_type, card_type, monster_type, package_id) 
+                                  VALUES (@id, @name, @damage, @element_type, @card_type, @monster_type, @package_id)";
                 foreach (var card in package)
                 {
+                    Console.WriteLine($"Inserting card with ID: {card.Id}");
                     using var cardCommand = new NpgsqlCommand(cardQuery, connection, transaction);
                     cardCommand.Parameters.AddWithValue("id", card.Id);
                     cardCommand.Parameters.AddWithValue("name", card.Name);
@@ -39,26 +41,25 @@ namespace MonsterTradingCardsGame.Database
                     await cardCommand.ExecuteNonQueryAsync();
                 }
 
-                await transaction.CommitAsync();
+                await transaction.CommitAsync(); // Commit the transaction if successful
             }
             catch (Exception)
             {
-                transaction.Rollback();
+                transaction.Rollback(); // Rollback transaction in case of an error
                 throw;
             }
         }
 
-
-
-        public async Task AcquriePackageAsync(User user)
+        // Allows a user to acquire a package of cards
+        public virtual async Task AcquriePackageAsync(User user)
         {
             using var connection = _databaseManager.GetConnection();
             await connection.OpenAsync();
-
             using var transaction = connection.BeginTransaction();
 
             try
             {
+                // Check if the user has enough coins
                 var checkCoinsQuery = @"SELECT coins FROM users WHERE id = @id";
                 using var checkCoinsCommand = new NpgsqlCommand(checkCoinsQuery, connection, transaction);
                 checkCoinsCommand.Parameters.AddWithValue("id", user.Id);
@@ -66,39 +67,41 @@ namespace MonsterTradingCardsGame.Database
                 if ((int)coins < 5)
                     throw new InvalidOperationException("Not enough money");
 
+                // Select the first available package
                 var packageQuery = @"SELECT id FROM packages ORDER BY id LIMIT 1;";
                 using var packageCommand = new NpgsqlCommand(packageQuery, connection, transaction);
                 var packageId = await packageCommand.ExecuteScalarAsync() ?? throw new InvalidOperationException("No packages available");
 
+                // Assign cards to the user and remove the package association
                 var updateCardsQuery = @"UPDATE cards SET user_id = @user_id, package_id = NULL WHERE package_id = @package_id";
                 using var updateCardsCommand = new NpgsqlCommand(updateCardsQuery, connection, transaction);
                 updateCardsCommand.Parameters.AddWithValue("user_id", user.Id);
                 updateCardsCommand.Parameters.AddWithValue("package_id", Convert.ToInt32(packageId));
                 await updateCardsCommand.ExecuteNonQueryAsync();
 
+                // Deduct coins from the user's account
                 var updateCoinsQuery = @"UPDATE users SET coins = coins - 5 WHERE id = @id";
                 using var updateCoinsCommand = new NpgsqlCommand(updateCoinsQuery, connection, transaction);
                 updateCoinsCommand.Parameters.AddWithValue("id", user.Id);
                 await updateCoinsCommand.ExecuteNonQueryAsync();
 
+                // Delete the package after assigning cards
                 var deletePackageQuery = "DELETE FROM packages WHERE id = @packageId;";
                 using var deletePackageCommand = new NpgsqlCommand(deletePackageQuery, connection, transaction);
                 deletePackageCommand.Parameters.AddWithValue("@packageId", packageId);
                 await deletePackageCommand.ExecuteNonQueryAsync();
 
-                await transaction.CommitAsync();
+                await transaction.CommitAsync(); // Commit the transaction if successful
             }
             catch (Exception)
             {
-                transaction.Rollback();
+                transaction.Rollback(); // Rollback transaction in case of an error
                 throw;
             }
         }
 
-
-
-
-        public async Task<List<Card>> GetCardsAsync(User user)
+        // Retrieves all cards owned by a user
+        public virtual async Task<List<Card>> GetCardsAsync(User user)
         {
             using var connection = _databaseManager.GetConnection();
             await connection.OpenAsync();
@@ -108,7 +111,7 @@ namespace MonsterTradingCardsGame.Database
             using var reader = await command.ExecuteReaderAsync();
 
             var cards = new List<Card>();
-            while (reader.Read())
+            while (reader.Read()) // Map the query result to card objects
             {
                 cards.Add(new Card
                 {
@@ -120,11 +123,11 @@ namespace MonsterTradingCardsGame.Database
                     MonsterType = Enum.Parse<MonsterType>(reader.GetString(5))
                 });
             }
-            return cards;
+            return cards; // Return the list of cards
         }
 
-
-        public async Task<List<Card>> GetDeckAsync(User user)
+        // Retrieves the user's deck (selected cards)
+        public virtual async Task<List<Card>> GetDeckAsync(User user)
         {
             using var connection = _databaseManager.GetConnection();
             await connection.OpenAsync();
@@ -139,7 +142,7 @@ namespace MonsterTradingCardsGame.Database
 
             var cards = new List<Card>();
             using var reader = await command.ExecuteReaderAsync();
-            while (reader.Read())
+            while (reader.Read()) // Map the query result to card objects
             {
                 cards.Add(new Card
                 {
@@ -152,11 +155,11 @@ namespace MonsterTradingCardsGame.Database
                 });
             }
 
-            return cards;
+            return cards; // Return the user's deck
         }
 
-
-        public async Task ConfigureDeckAsync(User user, List<string> cards)
+        // Configures the user's deck with selected cards
+        public virtual async Task ConfigureDeckAsync(User user, List<string> cards)
         {
             using var connection = _databaseManager.GetConnection();
             await connection.OpenAsync();
@@ -178,17 +181,16 @@ namespace MonsterTradingCardsGame.Database
                 command.Parameters.AddWithValue("user_id", user.Id);
 
                 var count = await command.ExecuteScalarAsync() ?? throw new InvalidOperationException("Invalid card id");
-                if ((int)count != 4)
+                if ((int)count != 4) // Ensure the deck contains exactly 4 cards
                     throw new InvalidOperationException("Error");
 
-                await transaction.CommitAsync();
+                await transaction.CommitAsync(); // Commit the transaction if successful
             }
             catch (Exception)
             {
-                transaction.Rollback();
+                transaction.Rollback(); // Rollback transaction in case of an error
                 throw;
             }
         }
-
     }
 }
